@@ -18,119 +18,143 @@ knitr::opts_chunk$set(
 
 ## Transformation de la base en données géographiques
 
-```{r un peu de cartographie}
-# Création du graphique spatial
-graphe_1 <- ggplot(projet_map) +  # Initialise un objet ggplot avec les données spatiales contenues dans 'projet_map'
-  aes(fill = sexe, colour = sexe) +  # Spécifie que la couleur de remplissage et la couleur des contours des régions seront déterminées par la variable 'sexe'
-  geom_sf(size = 2.35) +  # Ajoute une couche géométrique pour représenter les données spatiales, avec une taille de contour de 2.35
-  scale_fill_manual(values = c(femme = "#F8766D", homme = "#61FFEC")) +  # Définit manuellement les couleurs de remplissage des régions en fonction des valeurs de la variable 'sexe'
-  scale_color_manual(values = c(femme = "#F8766D", homme = "#61FFEC")) +  # Définit manuellement les couleurs des contours des régions en fonction des valeurs de la variable 'sexe'
-  theme_minimal()  # Applique un thème minimal au graphique, donnant un aspect épuré
-
-# Affichage du graphique
-graphe_1  # Affiche le graphique 'graphe_1' dans le document R Markdown
-
-```
-## Premiere carte
-
-```{r}
-
-# Crée un graphique spatial
-graphe_1 <- ggplot(projet_map) +  # Initialise un objet ggplot avec les données spatiales contenues dans 'projet_map'
-  aes(fill = sexe, colour = sexe) +  # Spécifie que la couleur de remplissage et la couleur des contours des régions seront déterminées par la variable 'sexe'
-  geom_sf(size = 2.35) +  # Ajoute une couche géométrique pour représenter les données spatiales, avec une taille de contour de 2.35
-  scale_fill_manual(values = c(femme = "#F8766D", homme = "#61FFEC")) +  # Définit manuellement les couleurs de remplissage des régions en fonction des valeurs de la variable 'sexe'
-  scale_color_manual(values = c(femme = "#F8766D", homme = "#61FFEC")) +  # Définit manuellement les couleurs des contours des régions en fonction des valeurs de la variable 'sexe'
-  theme_minimal()  # Applique un thème minimal au graphique, donnant un aspect épuré
-
-# Affiche le graphique
-graphe_1  # Affiche le graphique 'graphe_1' dans le document R Markdown
-
-```
-
-## Avec le Sénégal
-
-```{r donnees senegal}
-#IMPORTATION DES DONNEES DU SENEGAL
-
-# Lit les données spatiales du fichier 'past_sn0' et les stocke dans 'sn_map0'
-sn_map0 <- read_sf(past_sn0)
-sn_map1 <- read_sf(past_sn1)
-sn_map2 <- read_sf(past_sn2)
-sn_map3 <- read_sf(past_sn3)
-
-```
-
-### Carte brute Sénégal
-```{r}
+```{r packages needed}
+library(labelled)
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(gtsummary)
+library(sf)
+library(leaflet)
+library(raster)
 library(ggplot2)
+library(ggspatial)
+```
 
+```{r}
+projet_map<- sf::st_as_sf(projet, coords = c("gps_menlongitude", "gps_menlatitude")) #changer les données en type spatial
+class(projet_map) #class de la base de données
+```
+
+```{r}
+sf::st_crs(projet_map) <- 4326 #système de coordonnées
+str(projet_map)
+```
+
+# 3.2 Premiere carte
+
+```{r}
+graphe_1 <- ggplot(projet_map) +
+  aes(fill = sexe, colour = sexe) +
+  geom_sf(size = 2.35) +
+  scale_fill_manual(values = c(femme = "#F8766D", homme = "#61FFEC")) +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  annotation_scale(location = "br") +
+  annotation_north_arrow(location = "tr", which_north = "true")
+
+graphe_1
+```
+# 3.3.1 IMPORTATION DES DONNEES DU SENEGAL
+```{r}
+
+sn_map0 <- read_sf("Senegal/gadm41_SEN_0.shp")
+sn_map1 <- read_sf("Senegal/gadm41_SEN_1.shp")
+sn_map2 <- read_sf("Senegal/gadm41_SEN_2.shp")
+sn_map3 <- read_sf("Senegal/gadm41_SEN_3.shp")
+```
+
+# 3.3.1 Delimitation du Sénégal
+
+```{r}
 # Créer la carte brute du Sénégal
-carte_0 <- ggplot(sn_map0) +
- aes(fill = COUNTRY) +
- geom_sf(size = 1.2) +
- scale_fill_brewer(palette = "Accent", direction = 1) +
- labs(title = "Carte brute du Sénégal") +
- theme_minimal() +
- theme(legend.position = "none") +
- annotation_scale(location = "bl") +
- annotation_north_arrow(location = "bl", which_north = "true")
+NIV_0 <- ggplot(sn_map0) +
+ aes(fill = COUNTRY) + # Associe les couleurs à la variable COUNTRY
+ geom_sf(size = 1.4) + # Ajoute les polygones correspondant aux régions
+ scale_fill_brewer(palette = "YlOrRd", direction = 1) + # Utilise une palette de couleurs jaune-orange-rouge
+ labs(title = "Carte brute du Sénégal") + # Ajoute un titre à la carte
+ theme_minimal() + # Utilise un thème minimal
+ theme(legend.position = "none") + # Supprime la légende
+ annotation_scale(location = "bl") + # Ajoute une échelle
+ annotation_north_arrow(location = "tl", which_north = "true") # Ajoute une flèche indiquant le nord
 
-print(carte_0)
-
-```
-### Carte Sénégal niveau région
-
-```{r carte niveau region}
-
-
-carte_1 <- ggplot() +
-  geom_sf(data = sn_map1, aes(fill = NAME_1), color = "black", size = 0.8) +
-  geom_sf_text(data = sn_map1, aes(label = NAME_1), size = 3, color = "black") +  # Ajouter les noms des régions
-  theme(legend.position = "none")+ # Masquer la légende
-  annotation_scale(location = "bl") +
- annotation_north_arrow(location = "bl", which_north = "true")
-print(carte_1)
+print(NIV_0)
 
 ```
 
-### Carte Sénégal niveau département
+#3.3.2 Carte Sénégal avec niveau 1
 
-```{r carte niveau departement}
+```{r}
+NIV_1 <- ggplot() + # Crée un nouveau graphique
+  geom_sf(data = sn_map1, aes(fill = NAME_1), color = "black", size = 0.8) + # Ajoute les polygones correspondant aux régions avec le remplissage basé sur NAME_1
+  geom_sf_text(data = sn_map1, aes(label = NAME_1), size = 3, color = "black") +  # Ajoute les noms des régions
+  theme(legend.position = "none")+ # Masque la légende
+  labs(title = "Carte du Sénégal niveau région") + # Ajoute un titre à la carte
+  annotation_scale(location = "bl") + # Ajoute une échelle
+  annotation_north_arrow(location = "tl", which_north = "true") # Ajoute une flèche indiquant le nord
 
-carte_2 <- ggplot() +
-  geom_sf(data = sn_map2, aes(fill = NAME_2), color = "black", size = 0.8) +
-  geom_sf_text(data = sn_map2, aes(label = NAME_2), size = 3, color = "black") +  # Ajouter les noms des régions
-  theme(legend.position = "none")+ # Masquer la légende
-  annotation_scale(location = "bl") +
- annotation_north_arrow(location = "bl", which_north = "true")
-print(carte_2)
+print(NIV_1) # Affiche la carte
+
 ```
 
+# 3.3.3 Representation du Sénégal au niveau départemental
 
-### Carte Sénégal niveau commune
+```{r}
+NIV_2 <- ggplot() + # Crée un nouveau graphique
+  geom_sf(data = sn_map2, aes(fill = NAME_2), color = "black", size = 0.8) + # Ajoute les polygones correspondant aux régions avec le remplissage basé sur NAME_2
+  geom_sf_text(data = sn_map2, aes(label = NAME_2), size = 2.5, color = "black") +  # Ajoute les noms des régions
+  theme(legend.position = "none")+ # Masque la légende
+  labs(title = "Carte du Sénégal niveau département") + # Ajoute un titre à la carte
+  annotation_scale(location = "bl") + # Ajoute une échelle
+  annotation_north_arrow(location = "bl", which_north = "true") # Ajoute une flèche indiquant le nord
 
-```{r carte niveau commune}
+print(NIV_2) # Affiche la carte
+```
 
-carte_3 <- ggplot() +
+# 3.3.4 Representation du Sénégal au niveau communal
+
+```{r}
+NIV_3 <- ggplot() +
   geom_sf(data = sn_map3, aes(fill = NAME_3), color = "black", size = 0.8) +
-  geom_sf_text(data = sn_map3, aes(label = NAME_3), size = 3, color = "black") +  # Ajouter les noms des régions
+  geom_sf_text(data = sn_map3, aes(label = NAME_3), size = 2, color = "black") +  # Ajouter les noms des régions
   theme(legend.position = "none")+ # Masquer la légende
+  labs(title = "Carte Sénégal niveau commune") +
   annotation_scale(location = "bl") +
  annotation_north_arrow(location = "bl", which_north = "true")
-print(carte_3)
+print(NIV_3)
 ```
-## Réprésentation spatiale des PME suivant le sexe
 
-```{r representation spatiale des PME suivant le sexe}
-carte_0 <- ggplot() +
-  geom_sf(data = sn_map1, aes(fill = NAME_1), color = "black", size = 0.8) +
-  ggspatial::geom_sf(data = projet_map, ggspatial::aes(fill = sexe), color = "black", size = 0.5)+
-  geom_sf_text(data = sn_map1, aes(label = NAME_1), size = 3, color = "black") +  # Ajouter les noms des régions
-  theme(legend.position = "none")+ # Masquer la légende
-  annotation_scale(location = "bl") +
- annotation_north_arrow(location = "bl", which_north = "true")
+3.4 Carte des PME suivant le sexe
 
-carte_0
+```{r}
+X <- ggplot() + # Crée un nouveau graphique
+  geom_sf(data=sn_map1, color = "black", size = 0.8) + # Ajoute les polygones correspondant aux régions sans remplissage
+  theme(legend.position = "none") + # Masque la légende
+  geom_sf(data=projet_map,aes(fill = sexe, colour = sexe),size = 2.35) + # Ajoute les polygones correspondant aux PME avec remplissage basé sur le sexe
+  scale_fill_manual(values = c(femme = "#F8766D", homme = "#61FFEC")) + # Définit les couleurs de remplissage manuellement
+  labs(title = "Representation spatiale des PME suivant le sexe") + # Ajoute un titre à la carte
+  geom_sf_text(data = sn_map1, aes(label = NAME_1), size = 3, color = "black") + # Ajoute les noms des régions
+  annotation_scale(location = "br") + # Ajoute une échelle
+  annotation_north_arrow(location = "tr", which_north = "true") + # Ajoute une flèche indiquant le nord
+  theme_minimal() # Utilise un thème minimal
 
+X # Affiche la carte
+
+```
+
+3.5 Réprésentation spatiale des PME suivant le niveau d’instruction
+
+
+```{r}
+INSTRUC <- ggplot()+
+  geom_sf(data=sn_map1, color = "black", size = 0.8)+
+  theme(legend.position = "none") +
+  geom_sf(data=projet_map,aes(colour = q25),size = 1.2)+
+   geom_sf_text(data = sn_map1, aes(label = NAME_1), size = 3, color = "black") +
+  scale_color_hue(direction = 1,name = "Niveau d'instruction") +
+  annotation_scale(location = "br") +
+  labs(title = "Representation spatiale des PME suivant Niveau d'instruction")+
+ annotation_north_arrow(location = "tr", which_north = "true")+
+  theme_minimal()
+INSTRUC
 ```
