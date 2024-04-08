@@ -1,0 +1,533 @@
+---
+title: 'TP 1 : '
+author: "Omar THIAM"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+    always_allow_html: true
+    toc: true
+    toc_depth: 3
+    number_sections: true
+institute: ENSAE Pierre Ndiaye
+subtitle: Projet Statistique sous R et Python
+---
+
+```{r setup, include=TRUE, results = 'hide'}
+knitr::opts_chunk$set(
+  echo = TRUE, # Affiche le code source R dans le document final.
+  eval = TRUE, # Exécute le code R contenu dans le chunk.
+  message = FALSE, # Supprime l'affichage des messages R dans le document final.
+  warning = FALSE # Supprime l'affichage des avertissements R dans le document
+)
+```
+
+\newpage
+
+#  Préparation des données
+
+##  Description}
+
+###  Importation et mise en forme
+
+####  Importation de la base
+
+
+```{r packages needed}
+library(labelled)
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(gtsummary)
+library(sf)
+library(leaflet)
+library(raster)
+library(ggplot2)
+```
+
+```{r remove environment variables}
+rm(list = ls())
+```
+
+```{r}
+projet <- readxl::read_excel("Base_Projet.xlsx")
+head(projet)
+```
+
+```{r}
+colnames(projet)
+dim(projet)
+str(projet)
+```
+
+#### Tableau qui resume les valeurs manquantes par variable
+
+Nous calculons d'abord la somme des valeurs manquantes par colonne avec la fonction colSums. Ensuite nous mettons les valeurs trouvées dans la variable nbr_NA.
+
+```{r}
+# Calculer le nombre de valeurs manquantes par colonne (variable)
+nbr_NA <- colSums(is.na(projet))
+```
+
+Nous créons ensuite un dataframe pour y créer les colonnes Nbr_NA et pourcentage_NA qui affichent chacune le nombre de valeurs manquantes par colonne et leur pourcentage.
+
+```{r}
+# Créer un data frame résumant les valeurs manquantes
+data_NA <- data.frame(
+  Nbr_NA = nbr_NA,
+  Pourcentage_NA =100* nbr_NA/nrow(projet)
+)
+```
+
+Nous affichons enfin les résultats avec la fonction kabke de knitr.
+
+```{r eval = FALSE}
+# Afficher le tableau
+knitr::kable(data_NA, 
+    align = c("c", "c", "c"), caption = 
+      "Valeurs manquantes par colonne")
+```
+
+
+Les variables contenant les valeurs manquantes sont les variables q14b, q16, q17, q19.
+
+#### Vérification de valeurs manquantes dans la variable key
+
+```{r}
+# on filtre la colonne key pour ne retenir que les lignes contenant les valeurs manquantes
+# puis on utilise head pour afficher le résultat
+head(projet$key[is.na(projet$key)])
+```
+Ce résultat signifie que la liste des valeurs manquantes de la variable key est complètement vide.
+
+###  Création de variables
+
+####  Renommer les variables q1, q2 et q23
+
+Pour renommer les variables nous avons utilisé la fonction rename de dplyr. En utilisant la syntaxe *nouvelle_variable = ancienne_variable*, nous obtenons les résultats.
+
+```{r}
+# Renommer les variables
+projet = dplyr::rename(projet, region = q1 , departement = q2, sexe = q23)
+
+# Vérification des résultats
+names(projet)
+```
+
+Les variables q1, q2 et q23 ont bien été renommées.
+
+####  Création de la variable sexe-2
+
+```{r}
+# Nous avons utilisé une condition ifselse pour créer la variable sexe_2
+
+projet$sexe_2 = ifelse(projet$sexe=="Femme", 1,0)
+
+# Verification des résultats avec kable
+knitr::kable(head(projet[, c("sexe", "sexe_2")]), align=c("c","c","c"))
+```
+
+####  Création du dataframe nommé langues
+
+Ici nous utilisons la fonction select pour selectionner les variables et la fonction starts_with pour choisir les variables commençant par "q24a_"
+
+```{r}
+# Création du dataframe langues
+langues = dplyr::select(projet, "key", starts_with("q24a_"))
+
+# Vérification
+knitr::kable(head(langues))
+```
+
+####  Création de la variable parle
+
+Nous utilisons *select* pour sélectionner toutes les variables sauf "key" puis nous utilisons rowSums pour faire la somme des valeurs des variables par ligne.
+
+```{r}
+# Création de la variable parle
+langues$parle = langues %>% dplyr::select(-key) %>% rowSums()
+
+#Affichageprojet$filiere_1
+knitr::kable(head(langues[, c("key", "parle")]))
+```
+
+####  Sélection des variables key et parle
+
+```{r}
+# Utilisation de la fonction select pour la sélection
+langues = langues %>% dplyr::select("key", "parle")
+```
+
+####  Merger les dataframes projet et langue
+
+Nous utilisons la fonction merge pour la fusion et la variable "key" servira de clé de fusion.
+
+```{r}
+# Fusion
+projet_langues = merge(projet, langues, by = "key")
+
+# Vérification
+names(projet_langues)
+```
+
+La variable "parle" fait bien partie de la nouvelle base.
+
+
+#################################################
+
+# 2.Analyses descriptives
+
+## 2.1 Analyse univariée
+
+Creation de la fonction univariée
+
+```{r warning=FALSE}
+univarie <- function(data, variable,filiere) {
+   data %>%
+    tbl_summary(
+    by = filiere,
+    include = variable,
+    statistic = all_categorical() ~ "{p}%",
+    digits = all_categorical() ~ 2
+    )
+}
+```
+
+
+
+### Pour la filier arachide
+
+```{r echo=TRUE}
+projet <- projet %>% rename( niveau_instruction = q25)
+projet<- projet %>% rename( proprietaire_locataire = q81)
+projet <- projet %>% rename( statut_juridique = q12)
+```
+
+```{r warning=FALSE}
+# Créer les différentes tables univariées en utilisant univarie()
+#Renommons les variables suivantes niveau d’instruction •	le statut juridique?le  le  ###•	: propriétaire ou locataire   
+
+table11 <- univarie(projet, "sexe", "filiere_1")
+table12 <- univarie(projet, "niveau_instruction", "filiere_1")
+table13 <- univarie(projet, "proprietaire_locataire", "filiere_1")
+table14 <- univarie(projet, "statut_juridique", "filiere_1")
+
+# Fusionner les tables verticalement en utilisant tbl_stack()
+stacked_table1 <- tbl_stack(list(table11, table12, table13,table14))
+
+# Afficher le tableau fusionné
+stacked_table1
+```
+
+Dans le secteur de l'arachide, les données révèlent une dynamique distincte et significative. Tout d'abord, la forte implication des femmes est manifeste, avec 86.11% des entreprises dirigées par des femmes et seulement 13.89% par des hommes.
+En ce qui concerne le niveau d'instruction des responsables d'entreprises, une diversité est observée. Les niveaux d'instruction "Aucun niveau" et "Niveau secondaire" sont les plus courants, représentant respectivement 39.81% et 31.48%, suivis par les niveaux "Niveau primaire" (21.30%) et "Niveau Supérieur" (7.41%).
+
+Par ailleurs, la majorité écrasante des entreprises dans le domaine de l'arachide sont des propriétaires (88.89%), ce qui souligne une préférence pour la propriété dans ce secteur. Enfin, en ce qui concerne le statut juridique des entreprises, les Groupes d'Intérêt Économique (GIE) dominent (73.15%), suivis par les entreprises opérant de manière informelle (21.30%).
+
+
+### Pour la filier mangue
+
+```{r}
+# Créer les différentes tables univariées en utilisant univarie()
+table21 <- univarie(projet, "sexe", "filiere_2")
+table22 <- univarie(projet, "niveau_instruction", "filiere_2")
+table23 <- univarie(projet, "proprietaire_locataire", "filiere_2")
+table24 <- univarie(projet, "statut_juridique", "filiere_2")
+
+# Fusionner les tables verticalement en utilisant tbl_stack()
+stacked_table2 <- tbl_stack(list(table21, table22, table23,table24))
+# Afficher le tableau fusionné
+stacked_table2
+```
+
+Dans le contexte de la filière anacarde, les données révèlent des tendances significatives dans différents aspects de l'activité économique :
+
+La participation des femmes dans le secteur de l'anacarde est notable, bien que légèrement moins prononcée que dans d'autres filières, avec 65.57% des entreprises dirigées par des femmes, tandis que les hommes dirigent 34.43% des entreprises.
+
+Concernant le niveau d'instruction des responsables d'entreprises, une diversité est observée, avec une prédominance des niveaux "Aucun niveau" (21.31%) et "Niveau secondaire" (24.59%), suivis par "Niveau primaire" (27.87%) et "Niveau Supérieur" (26.23%).
+La majorité des entreprises impliquées dans l'anacarde sont des propriétaires (88.52%), ce qui reflète une préférence pour la propriété dans ce secteur.
+La forme juridique la plus courante des entreprises anacardiers est le Groupe d'Intérêt Économique (GIE), représentant 57.38% des entreprises, suivi par les entreprises informelles (19.67%). Les autres formes juridiques ont des pourcentages moins élevés mais non négligeables.
+
+
+### Pour la filiere mangue
+
+```{r}
+# Créer les différentes tables univariées en utilisant univarie()
+table31 <- univarie(projet, "sexe", "filiere_3")
+table32 <- univarie(projet, "niveau_instruction", "filiere_3")
+table33 <- univarie(projet, "proprietaire_locataire", "filiere_3")
+table34 <- univarie(projet, "statut_juridique", "filiere_3")
+
+# Fusionner les tables verticalement en utilisant tbl_stack()
+stacked_table3 <- tbl_stack(list(table31, table32, table33,table34))
+# Afficher le tableau fusionné
+stacked_table3
+```
+Dans le secteur de la mangue, les données fournies révèlent des tendances significatives qui permettent de mieux comprendre son dynamisme :
+
+La répartition par sexe des responsables d'entreprises montre une implication équilibrée entre les femmes et les hommes, avec 76.40% des entreprises dirigées par des femmes et 23.60% par des hommes, illustrant une participation importante des deux sexes dans ce secteur.
+
+En ce qui concerne le niveau d'instruction des responsables d'entreprises, une diversité est observée, avec une prédominance des niveaux "Aucun niveau" et "Niveau secondaire", représentant respectivement 29.21% et 28.09%, suivis par les niveaux "Niveau primaire" (26.97%) et "Niveau Supérieur" (15.73%).
+
+La majorité des entreprises dans la filière mangue sont des propriétaires (87.64%), avec une légère prédominance des propriétaires par rapport aux locataires (12.36%).
+
+Sur le plan juridique, les Groupes d'Intérêt Économique (GIE) dominent largement, représentant 82.02% des entreprises. Les entreprises informelles sont également significatives, représentant 5.62%. Les autres formes juridiques telles que la Société Anonyme (SA), la Société à Responsabilité Limitée (SARL), et la Société Unipersonnelle à Responsabilité Limitée (SUARL) ont des pourcentages moins élevés.
+
+
+### Pour la filier riz
+
+```{r warning=FALSE}
+# Créer les différentes tables univariées en utilisant univarie()
+table41 <- univarie(projet, "sexe", "filiere_4")
+table42 <- univarie(projet, "niveau_instruction", "filiere_4")
+table43 <- univarie(projet, "proprietaire_locataire", "filiere_4")
+table44 <- univarie(projet, "statut_juridique", "filiere_4")
+
+# Fusionner les tables verticalement en utilisant tbl_stack()
+stacked_table4 <- tbl_stack(list(table41, table42, table43,table44))
+# Afficher le tableau fusionné
+stacked_table4
+```
+
+
+Dans le secteur du riz, les données révèlent des tendances distinctes qui façonnent son paysage économique :
+
+Les femmes occupent une place prépondérante dans ce secteur, représentant 83.70% des responsables d'entreprises, tandis que les hommes dirigent seulement 16.30% des entreprises.
+
+Concernant le niveau d'instruction, une diversité significative est observée. Bien que certains responsables n'aient aucun niveau d'instruction (11.96%) ou un niveau primaire (28.26%), une proportion encore plus importante détient un niveau secondaire (34.78%) ou supérieur (25.00%), ce qui suggère une éducation élevée parmi les acteurs clés du secteur.
+
+La répartition entre locataires et propriétaires est relativement équilibrée, avec 9.78% des entreprises étant des locataires et 90.22% des entreprises étant des propriétaires.
+
+En ce qui concerne le statut juridique, les Groupes d'Intérêt Économique (GIE) dominent clairement, représentant une proportion significative de 83.70%. Les entreprises informelles sont également présentes, mais dans une moindre mesure (3.26%). Les autres formes juridiques telles que l'Association, la Société Anonyme (SA), la Société à Responsabilité Limitée (SARL) et la Société Unipersonnelle à Responsabilité Limitée (SUARL) ont des pourcentages plus faibles.
+## 2.2 Analyse bivariée
+
+### Création de la fonction bivariée
+
+```{r warning=FALSE}
+bivarie <- function(data, variable1,variable2) {
+      data %>%
+             tbl_summary(
+                  by = variable2,
+                  include = variable1,
+                  statistic = all_categorical() ~ "{p}%",
+                  digits = all_categorical() ~ 2
+              )
+}
+```
+
+### • le statut juridique et le sexe
+
+```{r}
+tb1 = bivarie(projet,"statut_juridique","sexe")
+tb1
+```
+
+Une forte présence féminine est observée parmi les dirigeants d'entreprises, avec 76.41% des entreprises dirigées par des femmes, tandis que les hommes dirigent une proportion plus petite (23.59%). 
+Les Groupements d'Intérêt Économique (GIE) sont la forme juridique la plus courante dans les deux groupes de sexe, mais leur prévalence varie significativement entre les entreprises dirigées par des femmes (78.01%) et celles dirigées par des hommes (50.85%). Les entreprises informelles sont également présentes dans les deux groupes, mais dans des proportions légèrement différentes (16.75% pour les entreprises dirigées par des femmes et 10.17% pour celles dirigées par des hommes).
+Il est intéressant de noter que certaines formes juridiques présentent des différences notables entre les entreprises dirigées par des femmes et celles dirigées par des hommes. Par exemple, les entreprises dirigées par des hommes montrent une plus grande proportion de Sociétés Anonymes (SA) et de Sociétés à Responsabilité Limitée (SARL) par rapport aux entreprises dirigées par des femmes.
+
+
+### • le niveau d’instruction et le sexe
+
+```{r}
+tb2 = bivarie(projet,"niveau_instruction","sexe")
+tb2
+```
+
+Les résultats montrent une répartition variée selon le niveau d'instruction des responsables d'entreprises, avec des différences significatives entre les sexes.
+Parmi les femmes, la proportion la plus élevée se trouve parmi celles sans niveau d'instruction (36.65%), suivie par celles ayant un niveau secondaire (29.32%). Cependant, seulement 8.90% des femmes ont un niveau d'instruction supérieur.
+En revanche, chez les hommes, la répartition est plus équilibrée, avec une part relativement élevée de ceux ayant un niveau d'instruction supérieur (40.68%), suivie par ceux avec un niveau secondaire (30.51%).
+
+
+### • Propriétaire/locataire suivant le sexe
+
+```{r}
+tb3 = bivarie(projet,"proprietaire_locataire","sexe")
+tb3
+```
+Les résultats révèlent une prévalence significative de propriétaires parmi les deux groupes, bien que les femmes affichent une proportion légèrement plus élevée de propriétaires que les hommes (91.62% contre 86.44%).
+En revanche, une plus grande proportion d'hommes sont locataires par rapport aux femmes (13.56% contre 8.38%).
+
+
+### Tableau recapitulatif
+
+```{r warning=FALSE}
+# # Fusionner les tables verticalement en utilisant tbl_stack()
+# stacked_tbivarie <- tbl_stack(list(tb1, tb2, tb3))
+# # Afficher le tableau fusionné
+# stacked_tbivarie
+# tableau aggrégé
+tabl_filiere_ <- gtsummary::tbl_merge(
+  list(tb1,tb2,tb3)) %>% as_kable_extra(caption = 
+    "Tableau des variables par filière")
+
+tabl_filiere_
+```
+
+### Option graphique
+
+```{r}
+# repartition <- function(data, variable) {
+#   # Calculer la répartition des PME selon la variable
+#   freq <- table(data[[variable]])
+#   
+#   # Générer un graphique de barres pour la répartition selon la variable
+#   barplot(freq, main = paste("Répartition des PME selon", variable), xlab = variable, ylab = "Fréquence")
+# }
+repartition <- function(data, variable) {
+  # Calculer la répartition des PME selon la variable
+  freq <- table(data[[variable]])
+  
+  # Convertir les fréquences en data frame
+  df <- data.frame(Niveau = names(freq), Frequence = as.numeric(freq))
+  
+  # Calculer les pourcentages
+  df <- df %>%
+    mutate(Pourcentage = (Frequence / sum(Frequence)) * 100)
+  
+  # Créer le graphique de barres avec les pourcentages
+  p <- ggplot(df, aes(x = Niveau, y = Frequence, fill = Niveau)) +
+    geom_bar(stat = "identity") +
+    geom_text(aes(label = paste0(round(Pourcentage), "%")), vjust = -0.5) +  # Ajouter les pourcentages au-dessus des barres
+    labs(title = paste("Répartition des PME selon", variable), x = variable, y = "Fréquence") +
+    scale_fill_discrete(name = variable) +  # Utiliser une échelle de couleurs discrètes
+    theme_minimal()  # Choix du thème du graphique
+  
+  return(p)
+}
+
+
+```
+
+```{r}
+repartition(projet,"sexe")
+```
+
+
+```{r}
+repartition(projet,"niveau_instruction")
+```
+
+
+# Un peu de cartographie
+
+## Transformation de la base en données géographiques
+
+```{r un peu de cartographie}
+projet_map<- sf::st_as_sf(projet, coords = c("gps_menlongitude", "gps_menlatitude")) #changer les données en type spatial
+class(projet_map) #class de la base de données
+sf::st_crs(projet_map) <- 4326 #système de coordonnées
+str(projet_map)
+```
+## Premiere carte
+
+```{r}
+
+graphe_1 <- ggplot(projet_map) +
+ aes(fill = sexe, colour = sexe) +
+ geom_sf(size = 2.35) +
+ scale_fill_manual(values = c(femme = "#F8766D", 
+homme = "#61FFEC")) +
+ scale_color_manual(values = c(femme = "#F8766D", homme = "#61FFEC")) +
+ theme_minimal()
+graphe_1
+```
+
+## Avec le Sénégal
+
+```{r donnees senegal}
+#IMPORTATION DES DONNEES DU SENEGAL
+
+sn_map0 <- read_sf(past_sn0)
+sn_map1 <- read_sf(past_sn1)
+sn_map2 <- read_sf(past_sn2)
+sn_map3 <- read_sf(past_sn3)
+
+```
+
+### Carte brute Sénégal
+```{r}
+library(ggplot2)
+
+# Créer la carte brute du Sénégal
+carte_0 <- ggplot(sn_map0) +
+ aes(fill = COUNTRY) +
+ geom_sf(size = 1.2) +
+ scale_fill_brewer(palette = "Accent", direction = 1) +
+ labs(title = "Carte brute du Sénégal") +
+ theme_minimal() +
+ theme(legend.position = "none") +
+ annotation_scale(location = "bl") +
+ annotation_north_arrow(location = "bl", which_north = "true")
+
+print(carte_0)
+
+```
+### Carte Sénégal niveau région
+
+```{r carte niveau region}
+
+
+carte_1 <- ggplot() +
+  geom_sf(data = sn_map1, aes(fill = NAME_1), color = "black", size = 0.8) +
+  geom_sf_text(data = sn_map1, aes(label = NAME_1), size = 3, color = "black") +  # Ajouter les noms des régions
+  theme(legend.position = "none")+ # Masquer la légende
+  annotation_scale(location = "bl") +
+ annotation_north_arrow(location = "bl", which_north = "true")
+print(carte_1)
+
+```
+
+### Carte Sénégal niveau département
+
+```{r carte niveau departement}
+
+carte_2 <- ggplot() +
+  geom_sf(data = sn_map2, aes(fill = NAME_2), color = "black", size = 0.8) +
+  geom_sf_text(data = sn_map2, aes(label = NAME_2), size = 3, color = "black") +  # Ajouter les noms des régions
+  theme(legend.position = "none")+ # Masquer la légende
+  annotation_scale(location = "bl") +
+ annotation_north_arrow(location = "bl", which_north = "true")
+print(carte_2)
+```
+
+
+### Carte Sénégal niveau commune
+
+```{r carte niveau commune}
+
+carte_3 <- ggplot() +
+  geom_sf(data = sn_map3, aes(fill = NAME_3), color = "black", size = 0.8) +
+  geom_sf_text(data = sn_map3, aes(label = NAME_3), size = 3, color = "black") +  # Ajouter les noms des régions
+  theme(legend.position = "none")+ # Masquer la légende
+  annotation_scale(location = "bl") +
+ annotation_north_arrow(location = "bl", which_north = "true")
+print(carte_3)
+```
+## Réprésentation spatiale des PME suivant le sexe
+
+```{r representation spatiale des PME suivant le sexe}
+carte_0 <- ggplot() +
+  geom_sf(data = sn_map1, aes(fill = NAME_1), color = "black", size = 0.8) +
+  ggspatial::geom_sf(data = projet_map, ggspatial::aes(fill = sexe), color = "black", size = 0.5)+
+  geom_sf_text(data = sn_map1, aes(label = NAME_1), size = 3, color = "black") +  # Ajouter les noms des régions
+  theme(legend.position = "none")+ # Masquer la légende
+  annotation_scale(location = "bl") +
+ annotation_north_arrow(location = "bl", which_north = "true")
+
+carte_0
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
